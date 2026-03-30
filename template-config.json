@@ -1,0 +1,128 @@
+{
+  "services": {
+    "postgres-svc": {
+      "name": "postgres",
+      "icon": "https://devicons.railway.com/i/postgresql.svg",
+      "source": {
+        "image": "pgvector/pgvector:pg16"
+      },
+      "deploy": {
+        "startCommand": "docker-entrypoint.sh postgres -c listen_addresses=*",
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 10
+      },
+      "variables": {
+        "PORT": {
+          "defaultValue": "5432",
+          "isOptional": false
+        },
+        "PGDATA": {
+          "defaultValue": "/var/lib/postgresql/data/pgdata",
+          "isOptional": false
+        },
+        "POSTGRES_DB": {
+          "defaultValue": "affine",
+          "isOptional": false
+        },
+        "POSTGRES_USER": {
+          "defaultValue": "affine",
+          "isOptional": false
+        },
+        "POSTGRES_PASSWORD": {
+          "defaultValue": "${{ secret(32) }}",
+          "isOptional": false
+        },
+        "POSTGRES_INITDB_ARGS": {
+          "defaultValue": "--data-checksums",
+          "isOptional": false
+        }
+      },
+      "volumeMounts": {
+        "postgres-vol": {
+          "mountPath": "/var/lib/postgresql/data"
+        }
+      }
+    },
+    "redis-svc": {
+      "name": "redis",
+      "icon": "https://devicons.railway.com/i/redis.svg",
+      "source": {
+        "image": "redis:7-alpine"
+      },
+      "deploy": {
+        "startCommand": "redis-server --bind 0.0.0.0 :: --port 6379",
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 10
+      },
+      "variables": {
+        "PORT": {
+          "defaultValue": "6379",
+          "isOptional": false
+        }
+      }
+    },
+    "affine-svc": {
+      "name": "affine",
+      "source": {
+        "image": "ghcr.io/toeverything/affine:stable"
+      },
+      "deploy": {
+        "startCommand": "sh -c 'COPILOT=0; PROVIDERS=\"\"; MODEL=\"\"; if [ -n \"$NVIDIA_NIM_API_KEY\" ]; then COPILOT=1; NIM_URL=\"${NVIDIA_NIM_BASE_URL:-https://integrate.api.nvidia.com/v1}\"; NIM_MDL=\"${NVIDIA_NIM_MODEL:-moonshotai/kimi-k2.5}\"; MODEL=\"$NIM_MDL\"; PROVIDERS=\"\\\"openai\\\":{\\\"apiKey\\\":\\\"${NVIDIA_NIM_API_KEY}\\\",\\\"baseURL\\\":\\\"${NIM_URL}\\\",\\\"oldApiStyle\\\":true}\"; echo \"[copilot] NIM: $NIM_MDL\"; fi; if [ -n \"$GOOGLE_GEMINI_API_KEY\" ]; then COPILOT=1; GEM_MDL=\"${GOOGLE_GEMINI_MODEL:-gemini-2.5-flash}\"; [ -z \"$MODEL\" ] && MODEL=\"$GEM_MDL\"; [ -n \"$PROVIDERS\" ] && PROVIDERS=\"${PROVIDERS},\"; PROVIDERS=\"${PROVIDERS}\\\"gemini\\\":{\\\"apiKey\\\":\\\"${GOOGLE_GEMINI_API_KEY}\\\"}\"; echo \"[copilot] Gemini: $GEM_MDL\"; fi; if [ \"$COPILOT\" = \"1\" ]; then mkdir -p /root/.affine/config; printf \"{\\\"copilot\\\":{\\\"enabled\\\":true,\\\"scenarios\\\":{\\\"override_enabled\\\":true,\\\"scenarios\\\":{\\\"chat\\\":\\\"%s\\\",\\\"coding\\\":\\\"%s\\\",\\\"quick_text_generation\\\":\\\"%s\\\",\\\"complex_text_generation\\\":\\\"%s\\\",\\\"quick_decision_making\\\":\\\"%s\\\",\\\"polish_and_summarize\\\":\\\"%s\\\"}},\\\"providers\\\":{%s}}}\" \"$MODEL\" \"$MODEL\" \"$MODEL\" \"$MODEL\" \"$MODEL\" \"$MODEL\" \"$PROVIDERS\" > /root/.affine/config/config.json; echo \"[copilot] Enabled, model: $MODEL\"; else echo \"[copilot] No API keys, disabled.\"; fi && node ./scripts/self-host-predeploy.js && node ./dist/main.js'",
+        "healthcheckPath": "/",
+        "healthcheckTimeout": 30,
+        "restartPolicyType": "ON_FAILURE",
+        "restartPolicyMaxRetries": 5
+      },
+      "variables": {
+        "PORT": {
+          "defaultValue": "3010",
+          "isOptional": false
+        },
+        "NODE_ENV": {
+          "defaultValue": "production",
+          "isOptional": false
+        },
+        "AFFINE_SERVER_PORT": {
+          "defaultValue": "3010",
+          "isOptional": false
+        },
+        "AFFINE_INDEXER_ENABLED": {
+          "defaultValue": "false",
+          "isOptional": false
+        },
+        "DATABASE_URL": {
+          "defaultValue": "postgresql://${{postgres.POSTGRES_USER}}:${{postgres.POSTGRES_PASSWORD}}@${{postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{postgres.POSTGRES_DB}}",
+          "isOptional": false
+        },
+        "REDIS_SERVER_HOST": {
+          "defaultValue": "${{redis.RAILWAY_PRIVATE_DOMAIN}}",
+          "isOptional": false
+        },
+        "REDIS_SERVER_PORT": {
+          "defaultValue": "6379",
+          "isOptional": false
+        },
+        "NVIDIA_NIM_API_KEY": {
+          "defaultValue": "",
+          "description": "NVIDIA NIM API key (optional) - enables AI Copilot. Get one at build.nvidia.com",
+          "isOptional": true
+        },
+        "GOOGLE_GEMINI_API_KEY": {
+          "defaultValue": "",
+          "description": "Google Gemini API key (optional) - enables AI Copilot. Get one at aistudio.google.com",
+          "isOptional": true
+        }
+      },
+      "networking": {
+        "serviceDomains": {
+          "<hasDomain>": {}
+        }
+      },
+      "volumeMounts": {
+        "affine-vol": {
+          "mountPath": "/root/.affine"
+        }
+      }
+    }
+  }
+}
