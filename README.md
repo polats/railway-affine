@@ -2,7 +2,7 @@
 
 Deploy [AFFiNE](https://affine.pro) — the open-source alternative to Notion and Miro — on [Railway](https://railway.com) with one click.
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/jp52av)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/affine-with-ai-copilot)
 
 ## Services
 
